@@ -82,11 +82,12 @@ function run_traceroute($ip){
 	$fd=popen("traceroute -w 2 -n ".escapeshellcmd($ip)." 2>/dev/null",'r');
 
 	$hops=array();
-	$i=1;
 	while( ($line=fgets($fd)) !== false ){
 		if($verbose) fputs(STDERR,"traceroute:$line");
+		if(preg_match('/^([ 0-9][0-9])  /',$line,$out) == false)
+			continue;
+		$i=(int)$out[1];
 		$ret=preg_match_all('/ (?:(?P<ip>[0-9.]+)(?:  [.0-9]+ ms(:? !(:?H|N|P|S|F-[0-9]+|X|V|C|[0-9]+)|))+|\*)/',
-			
 			$line, $out);
 		if($ret!==false){
 			$hops[$i++]=array_filter(
