@@ -90,12 +90,9 @@ function run_traceroute($ip){
 		$ret=preg_match_all('/ (?:(?P<ip>[0-9.]+)(?:  [.0-9]+ ms(:? !(:?H|N|P|S|F-[0-9]+|X|V|C|[0-9]+)|))+|\*)/',
 			$line, $out);
 		if($ret!==false){
-			$hops[$i++]=array_filter(
-				array_unique($out['ip']),
-				function  ($x) { return !empty($x);}
-			);
-		}else{
-			break;
+			$route=array_unique($out['ip']);
+			if(!empty($route))
+				$hops[$i++]=$route;
 		}
 	}
 	pclose($fd);
@@ -134,9 +131,14 @@ while($currentIndex<count($targetHosts)){
 	$traceEl->addAttribute('target',$targetHost);
 	foreach($trace as $distance=>$hops){
 		if(count($hops)){
+			$hidden="false";
 			$obj=$traceEl->addChild('hops');
 			$obj->addAttribute('distance',$distance);
 			foreach($hops as $host){
+				if(empty($host)){
+					$hidden="true";
+					continue;
+				}
 				# Add new hosts to stack
 				$obj->addChild('host',$host);
 				# Add new hosts to stack
@@ -146,6 +148,7 @@ while($currentIndex<count($targetHosts)){
 					$targetHosts[]=$host;
 				}
 			}
+			$obj->addAttribute('hiddenHops',$hidden);
 		}
 	}
 
