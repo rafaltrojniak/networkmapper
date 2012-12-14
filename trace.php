@@ -134,7 +134,7 @@ while($currentIndex<count($targetHosts)){
 				{
 					if($verbose) fputs(STDERR,"Adding host to history $host\n");
 					$targetHosts[]=$host;
-					$targetHostsTTL=$id*2;
+					$targetHostsTTL[$host]=$id*2;
 				}
 			}
 		}
@@ -162,7 +162,7 @@ while($currentIndex<count($targetHosts)){
 					{
 						if($verbose) fputs(STDERR,"Adding host to history $host\n");
 						$targetHosts[]=$host;
-						$targetHostsTTL=$distance*2;
+						$targetHostsTTL[$host]=$distance*2;
 					}
 				}
 				$obj->addAttribute('hiddenHops',$hidden);
