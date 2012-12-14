@@ -1,6 +1,7 @@
 #!/usr/bin/env php
 <?php
 $hostLimit=20;
+$ttlLimit=30;
 $verbose=false;
 
 function show_help(){
@@ -23,9 +24,16 @@ foreach(getopt( "hH:v" ) as $option=>$val){
 		break;
 	case 'H':
 		if(is_array($val))
-			$targetHosts=$val;
-		else
+		{
+			$targetHosts=array();
+			foreach($val as $host){
+				$targetHosts[]=$host;
+				$targetHostsTTL[$host]=$ttlLimit;
+			}
+		} else{
 			$targetHosts=array($val);
+			$targetHostsTTL[$val]=$ttlLimit;
+		}
 		break;
 	case 'v':
 		$verbose=true;
@@ -76,10 +84,10 @@ function run_ping($ip){
 	return $routes;
 }
 
-function run_traceroute($ip){
+function run_traceroute($ip,$ttl){
 	global $verbose;
-	if($verbose) fputs(STDERR,"Running traceroute to $ip\n");
-	$fd=popen("traceroute -w 2 -n ".escapeshellcmd($ip)." 2>/dev/null",'r');
+	if($verbose) fputs(STDERR,"Running traceroute to $ip with ttl $ttl\n");
+	$fd=popen("traceroute -w 2 -n ".escapeshellcmd($ip)." -m $ttl 2>/dev/null",'r');
 
 	$hops=array();
 	while( ($line=fgets($fd)) !== false ){
@@ -96,6 +104,12 @@ function run_traceroute($ip){
 		}
 	}
 	pclose($fd);
+	// Clean empty hops on the end
+	foreach(array_reverse(array_keys($hops)) as $id){
+		if(count($hops[$id]))
+			break;
+		unset($hops[$id]);
+	}
 	return $hops;
 }
 
@@ -113,42 +127,46 @@ while($currentIndex<count($targetHosts)){
 		$ping->addAttribute('target',$targetHost);
 		foreach($routes as $route){
 			$obj=$ping->addChild('route');
-			foreach($route as $host){
+			foreach($route as $id=>$host){
 				# Add new hosts to stack
 				$obj->addChild('host',$host);
 				if(!in_array($host,$targetHosts))
 				{
 					if($verbose) fputs(STDERR,"Adding host to history $host\n");
 					$targetHosts[]=$host;
+					$targetHostsTTL=$id*2;
 				}
 			}
 		}
 	}
 	# Run traceroute on host
-	$trace=run_traceroute($targetHost);
-	# Store result
-	$traceEl=$result->scans->addChild('traceroute');
-	$traceEl->addAttribute('target',$targetHost);
-	foreach($trace as $distance=>$hops){
-		if(count($hops)){
-			$hidden="false";
-			$obj=$traceEl->addChild('hops');
-			$obj->addAttribute('distance',$distance);
-			foreach($hops as $host){
-				if(empty($host)){
-					$hidden="true";
-					continue;
+	$trace=run_traceroute($targetHost,$targetHostsTTL[$targetHost]);
+	if(count($trace)){
+		# Store result
+		$traceEl=$result->scans->addChild('traceroute');
+		$traceEl->addAttribute('target',$targetHost);
+		foreach($trace as $distance=>$hops){
+			if(count($hops)){
+				$hidden="false";
+				$obj=$traceEl->addChild('hops');
+				$obj->addAttribute('distance',$distance);
+				foreach($hops as $host){
+					if(empty($host)){
+						$hidden="true";
+						continue;
+					}
+					# Add new hosts to stack
+					$obj->addChild('host',$host);
+					# Add new hosts to stack
+					if(!in_array($host,$targetHosts))
+					{
+						if($verbose) fputs(STDERR,"Adding host to history $host\n");
+						$targetHosts[]=$host;
+						$targetHostsTTL=$distance*2;
+					}
 				}
-				# Add new hosts to stack
-				$obj->addChild('host',$host);
-				# Add new hosts to stack
-				if(!in_array($host,$targetHosts))
-				{
-					if($verbose) fputs(STDERR,"Adding host to history $host\n");
-					$targetHosts[]=$host;
-				}
+				$obj->addAttribute('hiddenHops',$hidden);
 			}
-			$obj->addAttribute('hiddenHops',$hidden);
 		}
 	}
 
