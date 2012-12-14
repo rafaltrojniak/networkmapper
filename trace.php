@@ -47,7 +47,7 @@ if(empty($targetHosts)){
 function run_ping($ip){
 	global $verbose;
 	if($verbose) fputs(STDERR,"Running ping to $ip\n");
-	$fd=popen("ping -A -c1 -n -R ".escapeshellcmd($ip),'r');
+	$fd=popen("ping -A -c 10 -n -R -W 1 ".escapeshellcmd($ip),'r');
 
 	$routes=array();
 	$route=array();
@@ -55,6 +55,7 @@ function run_ping($ip){
 
 	$line=fgets($fd);
 	while( $line !== false ){
+		if($verbose) fputs(STDERR,"ping:$line");
 		if(substr($line, 0, 3) == "RR:")
 			$isRoute=true;
 
@@ -77,12 +78,13 @@ function run_ping($ip){
 
 function run_traceroute($ip){
 	global $verbose;
-	if($verbose) fputs(STDERR,"Runnint traceroute to $ip\n");
+	if($verbose) fputs(STDERR,"Running traceroute to $ip\n");
 	$fd=popen("traceroute -w 2 -n ".escapeshellcmd($ip)." 2>/dev/null",'r');
 
 	$hops=array();
 	$i=1;
 	while( ($line=fgets($fd)) !== false ){
+		if($verbose) fputs(STDERR,"traceroute:$line");
 		$ret=preg_match_all('/ (?:(?P<ip>[0-9.]+)(?:  [.0-9]+ ms(:? !(:?H|N|P|S|F-[0-9]+|X|V|C|[0-9]+)|))+|\*)/',
 			
 			$line, $out);
@@ -130,22 +132,27 @@ while($currentIndex<count($targetHosts)){
 	$traceEl=$result->scans->addChild('traceroute');
 	$traceEl->addAttribute('target',$targetHost);
 	foreach($trace as $distance=>$hops){
-		$obj=$traceEl->addChild('hops');
-		$obj->addAttribute('distance',$distance);
-		foreach($hops as $host){
-			# Add new hosts to stack
-			$obj->addChild('host',$host);
-			# Add new hosts to stack
-			if(!in_array($host,$targetHosts))
-			{
-				if($verbose) fputs(STDERR,"Adding host to history $host\n");
-				$targetHosts[]=$host;
+		if(count($hops)){
+			$obj=$traceEl->addChild('hops');
+			$obj->addAttribute('distance',$distance);
+			foreach($hops as $host){
+				# Add new hosts to stack
+				$obj->addChild('host',$host);
+				# Add new hosts to stack
+				if(!in_array($host,$targetHosts))
+				{
+					if($verbose) fputs(STDERR,"Adding host to history $host\n");
+					$targetHosts[]=$host;
+				}
 			}
 		}
 	}
 
 	if($currentIndex>$hostLimit)
+	{
+		if($verbose) fputs(STDERR,"Stopping scanning - tracket host count hit\n");
 		break;
+	}
 }
 # Gnerate result output
 echo $result->asXml();
