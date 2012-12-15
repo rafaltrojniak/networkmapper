@@ -107,7 +107,7 @@ function run_traceroute($ip,$ttl){
 	// Clean empty hops on the end
 	foreach(array_reverse(array_keys($hops)) as $id){
 		$uniq=array_unique($hops[$id]);
-		if(count($uniq)==1 and $uniq[0]=="")
+		if(count($uniq)!=1 or $uniq[0]!="")
 			break;
 		unset($hops[$id]);
 	}
