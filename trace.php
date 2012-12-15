@@ -114,11 +114,25 @@ function run_traceroute($ip,$ttl){
 	return $hops;
 }
 
+function get_source ($ip){
+	exec('ip route get '.escapeshellcmd($ip),$out,$ret);
+	if($ret!=0){
+		throw new Eception("Failed to run ip command - got status $ret");
+	}
+	$parts=explode(' ',$out[0]);
+	$index=array_search('src',$parts);
+	if($index===false)
+		throw new Eception("Failed to find 'src' token in output '".addslashes($out[0])."'");
+	return $parts[$index+1];
+}
+
 $currentIndex=0;
 $result=new SimpleXMLElement('<result><version v="1"/><scans></scans></result>');
 while($currentIndex<count($targetHosts)){
 	$targetHost=$targetHosts[$currentIndex];
 	$currentIndex++;
+	# Getting source ip address for host
+	$source=get_source($targetHost);
 	# Run ping -R on host
 	$routes=run_ping($targetHost);
 
@@ -126,6 +140,7 @@ while($currentIndex<count($targetHosts)){
 	if(count($routes)){
 		$ping=$result->scans->addChild('ping');
 		$ping->addAttribute('target',$targetHost);
+		$ping->addAttribute('source',$source);
 		foreach($routes as $route){
 			$obj=$ping->addChild('route');
 			foreach($route as $id=>$host){
@@ -146,6 +161,7 @@ while($currentIndex<count($targetHosts)){
 		# Store result
 		$traceEl=$result->scans->addChild('traceroute');
 		$traceEl->addAttribute('target',$targetHost);
+		$traceEl->addAttribute('source',$source);
 		foreach($trace as $distance=>$hops){
 			if(count($hops)){
 				$hidden="false";
